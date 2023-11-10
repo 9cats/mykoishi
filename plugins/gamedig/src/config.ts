@@ -44,7 +44,16 @@ const Config: Schema<Config> = Schema.intersect([
             .required()
             .description("游戏类型"),
           arg: Schema.string().default("").description("查询参数"),
-          show: Schema.array(Schema.union(InfoKeys))
+          show: Schema.array(Schema.union([
+            Schema.const("header").description("消息头"),
+            Schema.const("type").description("游戏类型"),
+            Schema.const("name").description("服务器名称"),
+            Schema.const("map").description("地图"),
+            Schema.const("playernum").description("玩家数量"),
+            Schema.const("playerlist").description("玩家列表"),
+            Schema.const("ping").description("延迟"),
+            Schema.const("connect").description("连接地址"),
+          ]))
             .default(["name"])
             .role("checkbox"),
         })
