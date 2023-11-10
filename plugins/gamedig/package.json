@@ -1,0 +1,49 @@
+{
+  "name": "koishi-plugin-gamedig",
+  "description": "",
+  "version": "0.0.1",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "dist"
+  ],
+  "author": "9cats <i@9cats.link>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/9cats/mykoishi.git",
+    "directory": "plugins/gamedig"
+  },
+  "bugs": {
+    "url": "https://github.com/9cats/mykoishi/issues"
+  },
+  "koishi": {
+    "description": {
+      "en": "Query game server status",
+      "zh": "查询游戏服务器状态"
+    },
+    "service": {
+      "optional": [
+        "puppeteer"
+      ],
+      "implements": [
+        "gamedig"
+      ]
+    }
+  },
+  "keywords": [
+    "chatbot",
+    "koishi",
+    "plugin"
+  ],
+  "peerDependencies": {
+    "koishi": "^4.15.3"
+  },
+  "dependencies": {
+    "gamedig": "^4.1.0"
+  },
+  "devDependencies": {
+    "koishi-plugin-puppeteer": "^3.7.0"
+  }
+}

@@ -1,0 +1,1 @@
+export const InfoKeys = ["header", "type", "name", "map", "playernum", "playerlist", "ping", "connect"] as const
