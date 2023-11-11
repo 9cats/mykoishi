@@ -1,4 +1,4 @@
-import Gamedig from "gamedig";
+const Gamedig = require(`gamedig`) as _Gamedig;
 
 // Reference: https://github.com/gamedig/node-gamedig/blob/master/GAMES_LIST.md#Supported
 export const SUPPORTED_GAMES = [
@@ -327,7 +327,7 @@ export const SUPPORTED_GAMES = [
   `zps`,
 ] as const;
 
-declare class Gamedig {
+declare class _Gamedig {
   constructor(runnerOpts?: { listenUdpPort?: number | undefined });
   query(options: Gamedig.QueryOptions): Promise<Gamedig.QueryResult>;
   query(
@@ -340,7 +340,7 @@ declare class Gamedig {
     options: Gamedig.QueryOptions,
     callback: (error: Error, state: Gamedig.QueryResult) => void
   ): void;
-  static getInstance(): Gamedig;
+  static getInstance(): _Gamedig;
 }
 declare namespace Gamedig {
   type Type = typeof SUPPORTED_GAMES[number];
