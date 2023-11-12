@@ -1,5 +1,4 @@
 import { Context } from "koishi";
-import {} from "koishi-plugin-puppeteer";
 import Service from "./service";
 import Config from "./config";
 import { Shortcut } from "./type";

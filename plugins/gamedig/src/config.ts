@@ -1,14 +1,12 @@
 import { Schema } from "koishi";
-import Gamedig, { SUPPORTED_GAMES } from "./gamedig";
 import { Shortcut } from "./type";
-import { InfoKeys } from "./constants";
+import { SUPPORTED_GAMES } from "./gamedig";
 
 interface Config {
-  // TODO:cache
-  // cache: {
-  //   enabled?: boolean;
-  //   ttl?: number;
-  // };
+  cache: {
+    enabled?: boolean;
+    maxAge?: number;
+  };
 
   shortcut: {
     enableAll?: boolean;
@@ -17,21 +15,20 @@ interface Config {
 }
 
 const Config: Schema<Config> = Schema.intersect([
-  // TODO:cache
-  // Schema.object({
-  //   cache: Schema.intersect([
-  //     Schema.object({
-  //       enabled: Schema.boolean().default(false).description("是否开启缓存"),
-  //     }),
-  //     Schema.union([
-  //       Schema.object({
-  //         enabled: Schema.const(true).required(),
-  //         ttl: Schema.number().default(1200).description("缓存过期时间"),
-  //       }),
-  //       Schema.object({}),
-  //     ]),
-  //   ]),
-  // }).description("缓存配置"),
+  Schema.object({
+    cache: Schema.intersect([
+      Schema.object({
+        enabled: Schema.boolean().default(false).description("是否开启查询缓存"),
+      }),
+      Schema.union([
+        Schema.object({
+          enabled: Schema.const(true).required(),
+          maxAge: Schema.number().default(5000).description("查询缓存过期时间"),
+        }),
+        Schema.object({}),
+      ]),
+    ]),
+  }).description("缓存配置"),
 
   // shortcut
   Schema.object({
