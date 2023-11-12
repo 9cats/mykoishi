@@ -43,7 +43,7 @@ namespace GameDigService {
   export const Config: Schema<Config> = Schema.object({
     cache: Schema.object({
       enabled: Schema.boolean().required(),
-      maxAge: Schema.number().required(),
+      maxAge: Schema.number(),
     }),
   });
 }
