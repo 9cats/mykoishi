@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-gamedig",
   "description": "Query game server status",
-  "version": "0.0.5",
+  "version": "1.0.0",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
