@@ -33,6 +33,7 @@ export function apply(ctx: Context, config: Config) {
       .option("hide-playerlist", "--hide-playerlist 隐藏玩家数量")
       .option("hide-ping", "--hide-ping 隐藏延迟")
       .option("hide-connect", "--hide-connect 隐藏链接")
+      .option("force-use-cache", "--force-use-cache 强制使用缓存")
       .usage(usage)
       .action(async ({ options, session }, address) => {
         if (Object.keys(options).length === 0) return usage;
@@ -42,33 +43,62 @@ export function apply(ctx: Context, config: Config) {
         try {
           const type = parseGameType(options.type);
           debugMsg += `game type paresed result : ${type}\n`;
-          const { host, port } = parseAddress(address);
-          debugMsg += `server address paresed result : ${JSON.stringify({
-            host,
-            port,
-          })}\n`;
+          const addressArr: { host: string; port: number }[] = [];
 
-          const result = await ctx.gamedig.query({
-            type,
-            host,
-            port,
-          });
+          address
+            .split(",")
+            .filter((v) => Boolean(v))
+            .forEach((v) => {
+              const { host, port } = parseAddress(v);
+              addressArr.push({ host, port });
+            });
 
-          debugMsg += `query result : ${JSON.stringify(result)}\n`;
+          debugMsg += `server address paresed result : ${JSON.stringify(
+            addressArr
+          )}\n`;
+          if (addressArr.length == 0) throw new Error("no address found");
+
+          const queries = Promise.all(
+            addressArr.map(async (v) => {
+              try {
+                const result = await ctx.gamedig.query({
+                  type,
+                  host: v.host,
+                  port: v.port,
+                  forceUseCache: options["force-use-cache"],
+                });
+                debugMsg += `${v.host}:${
+                  v.port
+                } query result : ${JSON.stringify(result)}\n`;
+
+                let value = "";
+                if (!options["hide-header"]) value += `服务器信息：\n`;
+                if (!options["hide-type"]) value += `类型：${type}\n`;
+                if (!options["hide-name"]) value += `名称：${result.name}\n`;
+                if (!options["hide-map"]) value += `地图：${result.map}\n`;
+                if (!options["hide-playernum"])
+                  value += `人数：${result.players.length}/${result.maxplayers}\n`;
+                if (!options["hide-playerlist"])
+                  value += `玩家：${result.players
+                    .map((p) => p.name)
+                    .join(",")}\n`;
+                if (!options["hide-ping"]) value += `延迟：${result.ping}\n`;
+                if (!options["hide-connect"])
+                  value += `链接：${result.connect}\n`;
+                return value;
+              } catch (e) {
+                debugMsg += `[${type}-${v.host}:${v.port}] query error : ${e.message}\n`;
+                return null;
+              }
+            })
+          );
+
+          const ret = (await queries)
+            .filter((v) => v != null)
+            .join("--------------\n");
+          if (ret.length == 0) throw new Error("no any query success");
           isDebug && session.send(debugMsg);
-
-          let value = "";
-          if (!options["hide-header"]) value += `服务器信息：\n`;
-          if (!options["hide-type"]) value += `类型：${type}\n`;
-          if (!options["hide-name"]) value += `名称：${result.name}\n`;
-          if (!options["hide-map"]) value += `地图：${result.map}\n`;
-          if (!options["hide-playernum"])
-            value += `人数：${result.players.length}/${result.maxplayers}\n`;
-          if (!options["hide-playerlist"])
-            value += `玩家：${result.players.map((p) => p.name).join(",")}\n`;
-          if (!options["hide-ping"]) value += `延迟：${result.ping}\n`;
-          if (!options["hide-connect"]) value += `链接：${result.connect}\n`;
-          return value;
+          return ret;
         } catch (e) {
           if (!isDebug) return `查询错误：请加 -d 显示详细的调试信息`;
           debugMsg += `error : ${e.message}\n`;
@@ -93,16 +123,53 @@ export function apply(ctx: Context, config: Config) {
     });
 
     Object.values(shortcutMapping).forEach((v) => {
-      const { shortcut, type, arg } = v;
+      const { shortcut, type, arg, forceUseCache } = v;
       let extraArg = `$1 ${arg}`;
       InfoKeys.forEach(
         (key) => !v.show.includes(key) && (extraArg += ` --hide-${key}`)
       );
+      if (forceUseCache) extraArg += ` --force-use-cache`;
 
       cmd.shortcut(new RegExp(`^${shortcut}(.*)$`, "i"), {
         args: [extraArg],
         options: { type },
       });
+    });
+
+    // -- 测试代码 --
+    const timer = setInterval(async () => {
+      [
+        {
+          host: "202.189.15.76",
+          port: 27045,
+        },
+        {
+          host: "202.189.15.76",
+          port: 27055,
+        },
+        {
+          host: "202.189.15.76",
+          port: 27065,
+        }
+      ].map((v) => {
+        ctx.gamedig
+          .query({
+            type: "csgo",
+            host: v.host,
+            port: v.port,
+          })
+          .then((result) => {
+            logger.info(
+              `[${v.host}:${v.port}]query result : ${JSON.stringify(result)}`
+            );
+          })
+          .catch((e) => {
+            logger.error(`${v.host}:${v.port} query error : ${e.message}`);
+          });
+      });
+    }, 30 * 1000);
+    ctx.on("dispose", () => {
+      clearInterval(timer);
     });
   });
 }

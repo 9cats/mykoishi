@@ -40,6 +40,7 @@ const Config: Schema<Config> = Schema.intersect([
           type: Schema.union(SUPPORTED_GAMES)
             .required()
             .description("游戏类型"),
+          forceUseCache: Schema.boolean().default(false).description("强制使用缓存"),
           arg: Schema.string().default("").description("查询参数"),
           show: Schema.array(Schema.union([
             Schema.const("header").description("消息头"),

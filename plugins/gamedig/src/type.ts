@@ -8,4 +8,5 @@ export type Shortcut = {
   type: Gamedig.Type;
   arg?: string;
   show: InfoKey[];
+  forceUseCache?: boolean;
 }
