@@ -135,41 +135,5 @@ export function apply(ctx: Context, config: Config) {
         options: { type },
       });
     });
-
-    // -- 测试代码 --
-    const timer = setInterval(async () => {
-      [
-        {
-          host: "202.189.15.76",
-          port: 27045,
-        },
-        {
-          host: "202.189.15.76",
-          port: 27055,
-        },
-        {
-          host: "202.189.15.76",
-          port: 27065,
-        }
-      ].map((v) => {
-        ctx.gamedig
-          .query({
-            type: "csgo",
-            host: v.host,
-            port: v.port,
-          })
-          .then((result) => {
-            logger.info(
-              `[${v.host}:${v.port}]query result : ${JSON.stringify(result)}`
-            );
-          })
-          .catch((e) => {
-            logger.error(`${v.host}:${v.port} query error : ${e.message}`);
-          });
-      });
-    }, 30 * 1000);
-    ctx.on("dispose", () => {
-      clearInterval(timer);
-    });
   });
 }
