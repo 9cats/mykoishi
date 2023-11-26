@@ -2,7 +2,6 @@ const Gamedig = require(`gamedig`) as _Gamedig;
 
 // Reference: https://github.com/gamedig/node-gamedig/blob/master/GAMES_LIST.md#Supported
 export const SUPPORTED_GAMES = [
-  `7d2d`,
   `as`,
   `ahl`,
   `ageofchivalry`,
@@ -25,6 +24,7 @@ export const SUPPORTED_GAMES = [
   `armar`,
   `armare`,
   `armagetron`,
+  `asa`,
   `assettocorsa`,
   `atlas`,
   `avorion`,
@@ -174,8 +174,6 @@ export const SUPPORTED_GAMES = [
   `mohwf`,
   `medievalengineers`,
   `minecraft`,
-  `minecraftping`,
-  `minecraftpe`,
   `minecraftbe`,
   `mnc`,
   `mordhau`,
@@ -198,8 +196,7 @@ export const SUPPORTED_GAMES = [
   `ohd`,
   `openarena`,
   `openttd`,
-  `operationflashpoint`,
-  `flashpoint`,
+  `ofcwc`,
   `flashpointresistance`,
   `painkiller`,
   `pc`,
@@ -241,6 +238,7 @@ export const SUPPORTED_GAMES = [
   `samp`,
   `saomp`,
   `savage2`,
+  `sdtd`,
   `ss`,
   `ss2`,
   `shatteredhorizon`,
@@ -279,7 +277,6 @@ export const SUPPORTED_GAMES = [
   `teamspeak3`,
   `terminus`,
   `terraria`,
-  `tshock`,
   `forrest`,
   `thefront`,
   `hidden`,
@@ -343,7 +340,7 @@ declare class _Gamedig {
   static getInstance(): _Gamedig;
 }
 declare namespace Gamedig {
-  type Type = typeof SUPPORTED_GAMES[number];
+  type Type = (typeof SUPPORTED_GAMES)[number];
 
   interface Player {
     name?: string | undefined;
