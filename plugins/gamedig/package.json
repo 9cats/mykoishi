@@ -39,6 +39,6 @@
     "koishi": "^4.15.4"
   },
   "dependencies": {
-    "gamedig": "^4.2.0"
+    "gamedig": "^4.3.0"
   }
 }
