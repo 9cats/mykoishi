@@ -87,7 +87,12 @@ export function apply(ctx: Context, config: Config) {
                   value += `链接：${result.connect}\n`;
                 return value;
               } catch (e) {
-                debugMsg += `[${type}-${v.host}:${v.port}] query error : ${e.message}\n`;
+                if (e instanceof Error) {
+                  console.log(e);
+                  debugMsg += `[${type} ${v.host}${v.port?`:${v.port}`:""}] query error : ${e.stack}\n`;
+                } else {
+                  debugMsg += `[${type} ${v.host}${v.port?`:${v.port}`:""}] query error : ${e}\n`;
+                }
                 return null;
               }
             })
@@ -101,7 +106,7 @@ export function apply(ctx: Context, config: Config) {
           return ret;
         } catch (e) {
           if (!isDebug) return `查询错误：请加 -d 显示详细的调试信息`;
-          debugMsg += `error : ${e.message}\n`;
+          debugMsg += `Error : ${e.message}\n`;
           return debugMsg;
         }
       });
