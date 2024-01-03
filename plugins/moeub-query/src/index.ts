@@ -23,7 +23,7 @@ export function apply(ctx: Context, config: Config) {
 
   // ----- 注册地图预览图片代理路由 -----
   ctx.server["get"]("/moeub/csgo-map-images/images/:imageName", async (ctx) => {
-    const imageName = ctx.params.imageName.replaceAll("%UNDERLINE%", "_");
+    const imageName = ctx.params.imageName.replaceAll("|UDL|", "_");
     const thirdPartyUrl = `https://mapimg.moeub.cn/csgo-map-images/images/${imageName}`;
 
     try {
@@ -233,7 +233,7 @@ export function apply(ctx: Context, config: Config) {
             const name = server.name.split(" Q群")[0].split("UB社区 ")[1] ?? "";
             const map =
               server.map.name.replaceAll("_", " ̱ ") +
-              (server.map.label ? `(${server.map.label})` : "");
+              (server.map.label ? `(${server.map.label.replaceAll("_", " ̱ ")})` : "");
             const playernum =
               `${server.clients.length}/${server.maxplayers}`.padStart(5, " ");
             return `${name}(${playernum})地图：${map}`;
@@ -290,10 +290,10 @@ export function apply(ctx: Context, config: Config) {
       } = result;
 
       const previewRequestURL = `${
-        ctx.server.selfUrl
+        ctx.server.config.selfUrl
       }/moeub/csgo-map-images/images/${map.name.replaceAll(
         "_",
-        "%UNDERLINE%"
+        "|UDL|"
       )}.jpg`;
       const timeleftStr =
         Date.now() >= timeleft * 1e3
@@ -311,14 +311,7 @@ export function apply(ctx: Context, config: Config) {
           params: [
             {
               key: "preview",
-              values: [
-                `${
-                  ctx.server.selfUrl
-                }/moeub/csgo-map-images/images/${map.name.replaceAll(
-                  "_",
-                  "%UNDERLINE%"
-                )}.jpg`,
-              ],
+              values: [   previewRequestURL         ],
             },
             {
               key: "name",
