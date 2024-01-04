@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-moeub-query",
   "description": "UB社区服务器查询插件(自用)",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -15,7 +15,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/9cats/mykoishi.git",
-    "directory": "plugins/gamedig"
+    "directory": "plugins/moeub-query"
   },
   "bugs": {
     "url": "https://github.com/9cats/mykoishi/issues"
@@ -23,7 +23,8 @@
   "koishi": {
     "description": {
       "zh": "UB社区服务器查询插件(自用)"
-    }
+    },
+    "hidden": true
   },
   "keywords": [
     "chatbot",

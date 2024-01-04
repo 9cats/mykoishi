@@ -6,6 +6,7 @@ import Config from "./config";
 import { EventEmitter } from "events";
 import { UB } from "./type";
 import { promises as fs } from "node:fs";
+import { trimMarkdownGrammar } from "./utils";
 
 export const name = "moeub-query-qq";
 export const usage = `TODO: usage`;
@@ -147,6 +148,31 @@ export function apply(ctx: Context, config: Config) {
         serverInfo.nextmap = body.data;
         break;
       }
+      // 地图加载
+      case "server/map/loaded": {
+        const { server } = body;
+        const serverInfo = mapping.get(server);
+        if (!serverInfo)
+          return logger.warn(
+            `handelEvent: server/map/start: server ${server} not found`
+          );
+        serverInfo.nextmap = body.data;
+        break;
+      }
+      // 回合结算
+      case "server/round_end": {
+        const { server } = body;
+        const { t_score, ct_score } = body.data;
+        const serverInfo = mapping.get(server);
+        if (!serverInfo)
+          return logger.warn(
+            `handelEvent: server/map/start: server ${server} not found`
+          );
+        serverInfo.t_score = t_score;
+        serverInfo.ct_score = ct_score;
+        break;
+      }
+      // 地图时间更改
       case "server/timeleftchanged": {
         const { server } = body;
         const serverInfo = mapping.get(server);
@@ -173,15 +199,16 @@ export function apply(ctx: Context, config: Config) {
     isHandling = false;
   }, 100);
 
-  ctx
+  const command = ctx
     .command("moeub [args:text]", "查询UB社区CS服务器状态")
+    .option("menu", "-m 显示菜单")
     .alias("状态")
-    .action(async ({ session }, args) => {
+    .action(async ({ session, options }, args) => {
       if (session.platform !== "qq") return;
       const { guildId, channelId, messageId, timestamp } = session;
       const bot = session.bot as unknown as QQBot;
       const http = bot.groupHttp;
-      if (!args) {
+      if (options.menu) {
         await http.post(`/v2/groups/${guildId}/messages`, {
           msg_id: messageId,
           msg_type: 2,
@@ -208,35 +235,54 @@ export function apply(ctx: Context, config: Config) {
         return;
       }
 
-      const regex = /^(僵尸逃跑|休闲对抗|休闲混战|攀岩竞速|叛乱越狱|饰品检视)/g;
-      const match = regex.exec(args.trim());
-      if (!match) return "未找到该服务器";
-      const serverType = match[1];
-      const serverID = args.trim().slice(match[1].length).trim();
+      // 所有服务器
+      const servers = Array.from(mapping.values()).sort((a, b) => a.id - b.id);
+      let query: UB.Server[] = [];
+      let serverType = "";
+      let serverID = "";
 
-      const query = Array.from(mapping.values())
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .filter((server) => {
-          const name = server.name
-            .replace("越狱搞基", "叛乱越狱")
-            .replace("女装混战", "休闲混战");
-          const match = /#[0-9]* /.exec(name);
-          if (!match) return false;
-          const id = parseInt(match[0].slice(1, -1)).toString();
-          if (serverID === "") return name.includes(serverType);
-          return name.includes(serverType) && id === serverID;
-        });
+      if (!args) query = servers.filter((server) => server.clients.length > 0);
+      else {
+        const regex =
+          /^(僵尸逃跑|休闲对抗|休闲混战|攀岩竞速|叛乱越狱|饰品检视)/g;
+        const match = regex.exec(args.trim());
+        if (!match) return "未找到该服务器";
+        serverType = match[1];
+        serverID = args.trim().slice(match[1].length).trim();
+        query = servers
+          .filter((server) => {
+            const name = server.name
+              .replace("越狱搞基", "叛乱越狱")
+              .replace("女装混战", "休闲混战");
+            const match = /#[0-9]* /.exec(name);
+            if (!match) return false;
+            const id = parseInt(match[0].slice(1, -1)).toString();
+            if (serverID === "") return name.includes(serverType);
+            return name.includes(serverType) && id === serverID;
+          });
+      }
+
       // 多查询
       if (serverID === "") {
         const content = query
           .map((server) => {
-            const name = server.name.split(" Q群")[0].split("UB社区 ")[1] ?? "";
+            const name =
+              server.name
+                .split("UB社区 ")[1]
+                .split(" Q群")[0]
+                .split(" GOKZ")[0]
+                .split(" 皮肤贴纸手套")[0] ?? "";
             const map =
               server.map.name.replaceAll("_", " ̱ ") +
-              (server.map.label ? `(${server.map.label.replaceAll("_", " ̱ ")})` : "");
-            const playernum =
-              `${server.clients.length}/${server.maxplayers}`.padStart(5, " ");
-            return `${name}(${playernum})地图：${map}`;
+              (server.map.label
+                ? `(${trimMarkdownGrammar(server.map.label)})`
+                : "");
+            const playernum = `${server.clients.length
+              .toString()
+              .padStart(2, "0")}/${server.maxplayers
+              .toString()
+              .padStart(2, "0")}`;
+            return `${name}(${playernum}) 地图：${map}`;
           })
           .join("\r\u200B");
         const params = {
@@ -264,7 +310,12 @@ export function apply(ctx: Context, config: Config) {
         };
 
         try {
-          await http.post(`/v2/groups/${guildId}/messages`, params);
+          const result = await http.post(
+            `/v2/groups/${guildId}/messages`,
+            params
+          );
+          if (!result.ret) return;
+          session.send(`发送失败，错误码：${result.ret}`);
         } catch (e) {
           if (e.response && e.response.data) {
             logger.error(e.response.data);
@@ -291,10 +342,7 @@ export function apply(ctx: Context, config: Config) {
 
       const previewRequestURL = `${
         ctx.server.config.selfUrl
-      }/moeub/csgo-map-images/images/${map.name.replaceAll(
-        "_",
-        "|UDL|"
-      )}.jpg`;
+      }/moeub/csgo-map-images/images/${map.name.replaceAll("_", "|UDL|")}.jpg`;
       const timeleftStr =
         Date.now() >= timeleft * 1e3
           ? "即将更换"
@@ -311,7 +359,7 @@ export function apply(ctx: Context, config: Config) {
           params: [
             {
               key: "preview",
-              values: [   previewRequestURL         ],
+              values: [previewRequestURL],
             },
             {
               key: "name",
@@ -327,7 +375,7 @@ export function apply(ctx: Context, config: Config) {
             },
             {
               key: "mapchiname",
-              values: [(map.label + " ").replaceAll("_", " ̱ ")],
+              values: [trimMarkdownGrammar(map.label ?? "") + " "],
             },
             {
               key: "score",
@@ -339,7 +387,11 @@ export function apply(ctx: Context, config: Config) {
             },
             {
               key: "playerlist",
-              values: [clients.map((client) => client.name).join("，") + " "],
+              values: [
+                clients
+                  .map((client) => trimMarkdownGrammar(client.name))
+                  .join("，") + " ",
+              ],
             },
           ],
         },
@@ -349,7 +401,19 @@ export function apply(ctx: Context, config: Config) {
       };
 
       try {
-        await http.post(`/v2/groups/${guildId}/messages`, params);
+        const result = await http.post(
+          `/v2/groups/${guildId}/messages`,
+          params
+        );
+        if (!result.ret) return;
+        if (result.ret === 10000) {
+          params.markdown.params.find(
+            ({ key }) => key === "playerlist"
+          ).values[0] = "【玩家名存在敏感词】";
+          await http.post(`/v2/groups/${guildId}/messages`, params);
+        } else {
+          session.send(`发送失败，错误码：${result.ret}`);
+        }
       } catch (e) {
         if (e.response && e.response.data) {
           logger.error(e.response.data);
@@ -357,6 +421,16 @@ export function apply(ctx: Context, config: Config) {
         }
       }
     });
+
+  command.shortcut(new RegExp(`^(/|)菜单`, "i"), { args: ["-m"] });
+  command.shortcut(new RegExp(`^(/|)状态(.*)$`, "i"), { args: ["$2"] });
+  command.shortcut(
+    new RegExp(
+      `^(/|)(僵尸逃跑|休闲对抗|休闲混战|攀岩竞速|叛乱越狱|饰品检视)(.*)$`,
+      "i"
+    ),
+    { args: ["$2", "$3"] }
+  );
 }
 
 function createConnection(ttl: number) {

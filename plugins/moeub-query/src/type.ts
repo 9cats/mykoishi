@@ -146,7 +146,12 @@ export namespace UB {
     //回合结束
     | {
         event: "server/round_end";
-        data: { reason: number; winner: number };
+        data: {
+          reason?: number;
+          winner?: number;
+          t_score: number;
+          ct_score: number;
+        };
         server: number;
       }
     //回合冻结结束
@@ -191,28 +196,28 @@ export namespace UB {
         data: Map;
         server: number;
       }
-      //地图预定添加
-      | {
-        event: "server/nominate/add"
-        server: number
+    //地图预定添加
+    | {
+        event: "server/nominate/add";
+        server: number;
         data: {
-          flag: number
-          name: string
-          label: string
-          steam64: string
-          type: number
-        }
-      }
-      //地图预定移除
-      | {
-        event: "server/nominate/add"
-        server: number
-        data: {
-          flag: number
-          name: string
-          label: string
-          steam64: string
-          type: number
+          flag: number;
+          name: string;
+          label: string;
+          steam64: string;
+          type: number;
         };
       }
+    //地图预定移除
+    | {
+        event: "server/nominate/add";
+        server: number;
+        data: {
+          flag: number;
+          name: string;
+          label: string;
+          steam64: string;
+          type: number;
+        };
+      };
 }
