@@ -1,5 +1,5 @@
 import WebSocket from "ws";
-import { Context, Logger, Session } from "koishi";
+import { Context, Session } from "koishi";
 import {} from "@koishijs/plugin-server";
 import { QQBot } from "@koishijs/plugin-adapter-qq";
 import Config from "./config";
@@ -12,12 +12,20 @@ export const name = "moeub-query";
 export const usage = `TODO: usage`;
 export const inject = ["server"];
 
+class MoeUBEventEmitter extends EventEmitter {
+  on<K extends keyof UB.EventMap>(
+    event: K,
+    listener: (data: UB.EventMap[K]) => void
+  ): this {
+    return super.on(event, listener as (...args: any[]) => void);
+  }
+}
+
 export function apply(ctx: Context, config: Config) {
   const http = ctx.http;
   const mapping = new Map<number, UB.Server>();
-  const emitter = new EventEmitter();
+  const emitter = new MoeUBEventEmitter();
   const logger = ctx.logger(name);
-  const eventQueue: UB.EventBody[] = [];
 
   let ws = createConnection(config.ws.ttl);
   ctx.on("dispose", () => {
@@ -58,7 +66,6 @@ export function apply(ctx: Context, config: Config) {
     });
     ws.on("message", (buffer: Buffer) => {
       const data = JSON.parse(buffer.toString());
-      eventQueue.push(data);
       emitter.emit(data.event, data);
     });
     ws.on("error", (err: Error) => {
@@ -83,123 +90,62 @@ export function apply(ctx: Context, config: Config) {
   })();
 
   // ----- 注册事件处理 -----
-  function handlerEvent(body: UB.EventBody) {
-    switch (body.event) {
-      //服务器初始化
-      case "server/init": {
-        const server = body.data;
-        mapping.set(server.id, server);
-        break;
-      }
-      // 玩家改变用户名
-      case "server/client/changename": {
-        const { client, server } = body;
-        const serverInfo = mapping.get(server);
-        if (!serverInfo)
-          return logger.warn(
-            `handelEvent: server/client/changename: server ${server} not found`
-          );
-        const { clients } = serverInfo;
-        const target = clients.find((item) => item.index == client);
-        if (!target)
-          return logger.warn(
-            `handelEvent: server/client/changename: client ${client} not found`
-          );
-        target.name = body.data.name;
-        break;
-      }
-      // 玩家连接
-      case "server/client/connected": {
-        // handlerEvent("server/client/disconnect")
-        const { server } = body;
-        const serverInfo = mapping.get(server);
-        if (!serverInfo)
-          return logger.warn(
-            `handelEvent: server/client/connected: server ${server} not found`
-          );
-        const { clients } = serverInfo;
-        clients.push(body.data);
-        break;
-      }
-      // 玩家断线
-      case "server/client/disconnect": {
-        const { client, server } = body;
-        const serverInfo = mapping.get(server);
-        if (!serverInfo)
-          return logger.warn(
-            `handelEvent: server/client/disconnect: server ${server} not found`
-          );
-        const { clients } = serverInfo;
-        const target = clients.find((item) => item.index == client);
-        if (!target)
-          return logger.warn(
-            `handelEvent: server/client/disconnect: client ${client} not found`
-          );
-        // serverInfo.clients = clients.splice(clients.indexOf(target), 1);
-        clients.splice(clients.indexOf(target), 1);
-        break;
-      }
-      // 更换地图
-      case "server/map/start": {
-        const { server } = body;
-        const serverInfo = mapping.get(server);
-        if (!serverInfo)
-          return logger.warn(
-            `handelEvent: server/map/start: server ${server} not found`
-          );
-        serverInfo.map = body.data;
-        break;
-      }
-      // 地图加载
-      case "server/map/loaded": {
-        const { server } = body;
-        const serverInfo = mapping.get(server);
-        if (!serverInfo)
-          return logger.warn(
-            `handelEvent: server/map/start: server ${server} not found`
-          );
-        serverInfo.map = body.data;
-        break;
-      }
-      // 回合结算
-      case "server/round_end": {
-        const { server } = body;
-        const { t_score, ct_score } = body.data;
-        const serverInfo = mapping.get(server);
-        if (!serverInfo)
-          return logger.warn(
-            `handelEvent: server/map/start: server ${server} not found`
-          );
-        serverInfo.t_score = t_score;
-        serverInfo.ct_score = ct_score;
-        break;
-      }
-      // 地图时间更改
-      case "server/timeleftchanged": {
-        const { server } = body;
-        const serverInfo = mapping.get(server);
-        if (!serverInfo)
-          return logger.warn(
-            `handelEvent: server/timeleftchanged: server ${server} not found`
-          );
-        serverInfo.timeleft = body.data.timeleft;
-        break;
-      }
-      default: {
-        // logger.warn(`Unknown event: ${data.event}`);
-      }
-    }
-  }
-
-  // ----- 处理时间队列 -----
-  let isHandling = false;
-  ctx.setInterval(() => {
-    if (isHandling) return;
-    if (eventQueue.length === 0) return;
-    isHandling = true;
-    while (eventQueue.length) handlerEvent(eventQueue.shift());
-    isHandling = false;
-  }, 100);
+  emitter
+    .on("server/init", (body) => {
+      const server = body.data;
+      mapping.set(server.id, server);
+    })
+    .on("server/client/changename", (body) => {
+      const { client, server } = body;
+      const serverInfo = mapping.get(server);
+      if (!serverInfo) return;
+      const { clients } = serverInfo;
+      const target = clients.find((item) => item.index == client);
+      if (!target) return;
+      target.name = body.data.name;
+    })
+    .on("server/client/connected", (body) => {
+      const { server } = body;
+      const serverInfo = mapping.get(server);
+      if (!serverInfo) return;
+      const { clients } = serverInfo;
+      clients.push(body.data);
+    })
+    .on("server/client/disconnect", (body) => {
+      const { client, server } = body;
+      const serverInfo = mapping.get(server);
+      if (!serverInfo) return;
+      const { clients } = serverInfo;
+      const target = clients.find((item) => item.index == client);
+      if (!target) return;
+      clients.splice(clients.indexOf(target), 1);
+    })
+    .on("server/map/start", (body) => {
+      const { server } = body;
+      const serverInfo = mapping.get(server);
+      if (!serverInfo) return;
+      serverInfo.map = body.data;
+    })
+    .on("server/map/loaded", (body) => {
+      const { server } = body;
+      const serverInfo = mapping.get(server);
+      if (!serverInfo) return;
+      serverInfo.map = body.data;
+    })
+    .on("server/round_end", (body) => {
+      const { server } = body;
+      const { t_score, ct_score } = body.data;
+      const serverInfo = mapping.get(server);
+      if (!serverInfo) return;
+      serverInfo.t_score = t_score;
+      serverInfo.ct_score = ct_score;
+    })
+    .on("server/timeleftchanged", (body) => {
+      const { server } = body;
+      const serverInfo = mapping.get(server);
+      if (!serverInfo) return;
+      serverInfo.timeleft = body.data.timeleft;
+    });
 
   function sendMessage(session: Session, data) {
     const isDirect = session.isDirect;
@@ -216,7 +162,7 @@ export function apply(ctx: Context, config: Config) {
       const bot = session.bot as unknown as InstanceType<
         typeof QQBot
       >["guildBot"];
-      delete data.msg_id;
+      if (data.msg_type == 2) delete data.msg_id; //(md) 以主动消息发送
       if (isDirect) return bot.internal.sendDM(session.guildId, data);
       else return bot.internal.sendMessage(session.channelId, data);
     }
@@ -332,7 +278,7 @@ export function apply(ctx: Context, config: Config) {
         };
 
         try {
-          const result = await sendMessage(session, params) as unknown as any;
+          const result = (await sendMessage(session, params)) as unknown as any;
           if (!result.ret) return;
           session.send(`发送失败，错误码：${result.ret}`);
         } catch (e) {
@@ -420,13 +366,13 @@ export function apply(ctx: Context, config: Config) {
       };
 
       try {
-        const result = await sendMessage(session, params) as unknown as any;
+        const result = (await sendMessage(session, params)) as unknown as any;
         if (!result.ret) return;
         if (result.ret === 10000) {
           params.markdown.params.find(
             ({ key }) => key === "playerlist"
           ).values[0] = "【玩家名存在敏感词】";
-          await sendMessage(session, params)
+          await sendMessage(session, params);
         } else {
           session.send(`发送失败，错误码：${result.ret}`);
         }

@@ -221,6 +221,10 @@ export namespace UB {
           type: number;
         };
       };
+
+  export type EventMap = {
+    [K in EventBody as K["event"]]: K;
+  };
 }
 
 // export type sendMessageResult = {

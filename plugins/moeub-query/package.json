@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-moeub-query",
   "description": "UB社区服务器查询插件(自用)",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
