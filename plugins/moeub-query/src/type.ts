@@ -1,10 +1,11 @@
 export namespace UB {
   export type Map = {
-    flag: number; // unknown
-    id: number; // unknown
+    id: number;
+    flag: number; // 标签
     label: string; // 地图译名
     name: string; // 地图名
-    type: number; // 3 = ze
+    mode: number; // 模式
+    type: number; // 难度
     lose: number; //失败总数
     win: number; //获胜总数
   };
@@ -221,3 +222,12 @@ export namespace UB {
         };
       };
 }
+
+// export type sendMessageResult = {
+//   group_code: string;
+//   msg: string;
+// } & {
+//   code: number;
+//   message: string;
+//   data: any;
+// };

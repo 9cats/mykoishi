@@ -1,5 +1,5 @@
 import WebSocket from "ws";
-import { Context } from "koishi";
+import { Context, Logger, Session } from "koishi";
 import {} from "@koishijs/plugin-server";
 import { QQBot } from "@koishijs/plugin-adapter-qq";
 import Config from "./config";
@@ -8,7 +8,7 @@ import { UB } from "./type";
 import { promises as fs } from "node:fs";
 import { trimMarkdownGrammar } from "./utils";
 
-export const name = "moeub-query-qq";
+export const name = "moeub-query";
 export const usage = `TODO: usage`;
 export const inject = ["server"];
 
@@ -20,7 +20,9 @@ export function apply(ctx: Context, config: Config) {
   const eventQueue: UB.EventBody[] = [];
 
   let ws = createConnection(config.ws.ttl);
-  ctx.on("dispose", ws.close);
+  ctx.on("dispose", () => {
+    ws.close();
+  });
 
   // ----- 注册地图预览图片代理路由 -----
   ctx.server["get"]("/moeub/csgo-map-images/images/:imageName", async (ctx) => {
@@ -145,7 +147,7 @@ export function apply(ctx: Context, config: Config) {
           return logger.warn(
             `handelEvent: server/map/start: server ${server} not found`
           );
-        serverInfo.nextmap = body.data;
+        serverInfo.map = body.data;
         break;
       }
       // 地图加载
@@ -156,7 +158,7 @@ export function apply(ctx: Context, config: Config) {
           return logger.warn(
             `handelEvent: server/map/start: server ${server} not found`
           );
-        serverInfo.nextmap = body.data;
+        serverInfo.map = body.data;
         break;
       }
       // 回合结算
@@ -199,39 +201,63 @@ export function apply(ctx: Context, config: Config) {
     isHandling = false;
   }, 100);
 
+  function sendMessage(session: Session, data) {
+    const isDirect = session.isDirect;
+    const platform = session.platform;
+
+    if (platform == "qq") {
+      const bot = session.bot as unknown as QQBot;
+
+      if (isDirect)
+        return bot.internal.sendPrivateMessage(session.userId, data);
+      else return bot.internal.sendMessage(session.guildId, data);
+    }
+    if (platform == "qqguild") {
+      const bot = session.bot as unknown as InstanceType<
+        typeof QQBot
+      >["guildBot"];
+      delete data.msg_id;
+      if (isDirect) return bot.internal.sendDM(session.guildId, data);
+      else return bot.internal.sendMessage(session.channelId, data);
+    }
+  }
+
   const command = ctx
     .command("moeub [args:text]", "查询UB社区CS服务器状态")
     .option("menu", "-m 显示菜单")
     .alias("状态")
     .action(async ({ session, options }, args) => {
-      if (session.platform !== "qq") return;
+      if (session.platform !== "qq" && session.platform !== "qqguild") return;
       const { guildId, channelId, messageId, timestamp } = session;
       const bot = session.bot as unknown as QQBot;
-      const http = bot.groupHttp;
       if (options.menu) {
-        await http.post(`/v2/groups/${guildId}/messages`, {
-          msg_id: messageId,
-          msg_type: 2,
-          // msg_seq: 2,
-          timestamp: timestamp,
-          content: "",
-          markdown: {
-            custom_template_id: "102071733_1703268196",
-            params: [
-              {
-                key: "title",
-                values: ["UB服务器查询机器人"],
-              },
-              {
-                key: "content",
-                values: ["点击以下按键查询服务器状态"],
-              },
-            ],
-          },
-          keyboard: {
-            id: "102071733_1703235586",
-          },
-        });
+        // bot.internal.sendMessage
+        try {
+          await sendMessage(session, {
+            msg_id: messageId,
+            msg_type: 2,
+            markdown: {
+              custom_template_id: "102071733_1703268196",
+              params: [
+                {
+                  key: "title",
+                  values: ["UB服务器查询机器人"],
+                },
+                {
+                  key: "content",
+                  values: ["点击以下按键查询服务器状态"],
+                },
+              ],
+            },
+            keyboard: {
+              id: "102071733_1703235586",
+            },
+          });
+        } catch (e) {
+          if (e.response && e.response.data) {
+            logger.error(e.response.data);
+          }
+        }
         return;
       }
 
@@ -249,17 +275,16 @@ export function apply(ctx: Context, config: Config) {
         if (!match) return "未找到该服务器";
         serverType = match[1];
         serverID = args.trim().slice(match[1].length).trim();
-        query = servers
-          .filter((server) => {
-            const name = server.name
-              .replace("越狱搞基", "叛乱越狱")
-              .replace("女装混战", "休闲混战");
-            const match = /#[0-9]* /.exec(name);
-            if (!match) return false;
-            const id = parseInt(match[0].slice(1, -1)).toString();
-            if (serverID === "") return name.includes(serverType);
-            return name.includes(serverType) && id === serverID;
-          });
+        query = servers.filter((server) => {
+          const name = server.name
+            .replace("越狱搞基", "叛乱越狱")
+            .replace("女装混战", "休闲混战");
+          const match = /#[0-9]* /.exec(name);
+          if (!match) return false;
+          const id = parseInt(match[0].slice(1, -1)).toString();
+          if (serverID === "") return name.includes(serverType);
+          return name.includes(serverType) && id === serverID;
+        });
       }
 
       // 多查询
@@ -288,9 +313,6 @@ export function apply(ctx: Context, config: Config) {
         const params = {
           msg_id: messageId,
           msg_type: 2,
-          // msg_seq: 2,
-          timestamp: timestamp,
-          content: "",
           markdown: {
             custom_template_id: "102071733_1703268196",
             params: [
@@ -310,10 +332,7 @@ export function apply(ctx: Context, config: Config) {
         };
 
         try {
-          const result = await http.post(
-            `/v2/groups/${guildId}/messages`,
-            params
-          );
+          const result = await sendMessage(session, params) as unknown as any;
           if (!result.ret) return;
           session.send(`发送失败，错误码：${result.ret}`);
         } catch (e) {
@@ -401,16 +420,13 @@ export function apply(ctx: Context, config: Config) {
       };
 
       try {
-        const result = await http.post(
-          `/v2/groups/${guildId}/messages`,
-          params
-        );
+        const result = await sendMessage(session, params) as unknown as any;
         if (!result.ret) return;
         if (result.ret === 10000) {
           params.markdown.params.find(
             ({ key }) => key === "playerlist"
           ).values[0] = "【玩家名存在敏感词】";
-          await http.post(`/v2/groups/${guildId}/messages`, params);
+          await sendMessage(session, params)
         } else {
           session.send(`发送失败，错误码：${result.ret}`);
         }
