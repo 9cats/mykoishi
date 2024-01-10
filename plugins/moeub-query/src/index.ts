@@ -4,7 +4,7 @@ import {} from "@koishijs/plugin-server";
 import { QQBot } from "@koishijs/plugin-adapter-qq";
 import Config from "./config";
 import { EventEmitter } from "events";
-import { UB } from "./type";
+import { MoeUB } from "./type";
 import { promises as fs } from "node:fs";
 import { trimMarkdownGrammar } from "./utils";
 
@@ -13,17 +13,27 @@ export const usage = `TODO: usage`;
 export const inject = ["server"];
 
 class MoeUBEventEmitter extends EventEmitter {
-  on<K extends keyof UB.EventMap>(
+  on<K extends keyof MoeUB.EventMap>(
     event: K,
-    listener: (data: UB.EventMap[K]) => void
+    listener: (data: MoeUB.EventMap[K]) => void
   ): this {
     return super.on(event, listener as (...args: any[]) => void);
+  }
+
+  onMultiple<K extends keyof MoeUB.EventMap>(
+    events: K[],
+    listener: (data: MoeUB.EventMap[K]) => void
+  ): this {
+    events.forEach((event) => {
+      this.on(event, listener);
+    });
+    return this;
   }
 }
 
 export function apply(ctx: Context, config: Config) {
   const http = ctx.http;
-  const mapping = new Map<number, UB.Server>();
+  const mapping = new Map<number, MoeUB.Server>();
   const emitter = new MoeUBEventEmitter();
   const logger = ctx.logger(name);
 
@@ -91,19 +101,12 @@ export function apply(ctx: Context, config: Config) {
 
   // ----- 注册事件处理 -----
   emitter
+    /* ----- Init Event ----- */
     .on("server/init", (body) => {
       const server = body.data;
       mapping.set(server.id, server);
     })
-    .on("server/client/changename", (body) => {
-      const { client, server } = body;
-      const serverInfo = mapping.get(server);
-      if (!serverInfo) return;
-      const { clients } = serverInfo;
-      const target = clients.find((item) => item.index == client);
-      if (!target) return;
-      target.name = body.data.name;
-    })
+    /* ----- Client Event ----- */
     .on("server/client/connected", (body) => {
       const { server } = body;
       const serverInfo = mapping.get(server);
@@ -120,17 +123,75 @@ export function apply(ctx: Context, config: Config) {
       if (!target) return;
       clients.splice(clients.indexOf(target), 1);
     })
-    .on("server/map/start", (body) => {
+    .onMultiple(
+      [
+        "server/client/changename",
+        "server/client/team",
+        "server/client/spawn",
+        "server/client/death",
+        "server/client/commander",
+        "server/client/warden",
+        "server/client/afk",
+        "server/client/loaded",
+        // "server/client/titlechanged",
+        // "server/client/clantagchanged",
+      ],
+      (body) => {
+        const { client, server } = body;
+        const serverInfo = mapping.get(server);
+        if (!serverInfo) return;
+        const { clients } = serverInfo;
+        const target = clients.find((item) => item.index == client);
+        if (!target) return;
+        if ("data" in body) Object.assign(target, body.data);
+      }
+    )
+    .on("server/client/clantagchanged", (body) => {
+      const { client, server } = body;
+      const serverInfo = mapping.get(server);
+      if (!serverInfo) return;
+      const { clients } = serverInfo;
+      const target = clients.find((item) => item.index == client);
+      if (!target) return;
+      target.clan = body.data;
+    })
+    /* ----- Map Event ----- */
+    .onMultiple(["server/map/loaded", "server/map/start"], (body) => {
       const { server } = body;
       const serverInfo = mapping.get(server);
       if (!serverInfo) return;
       serverInfo.map = body.data;
     })
-    .on("server/map/loaded", (body) => {
+    /* ----- NextMap Event ----- */
+    .onMultiple(["server/nextmap/loaded", "server/nextmap/loaded"], (body) => {
       const { server } = body;
       const serverInfo = mapping.get(server);
       if (!serverInfo) return;
-      serverInfo.map = body.data;
+      serverInfo.nextmap = body.data;
+    })
+    /* ----- Nominate Event ----- */
+    .on("server/nominate/add", (body) => {
+      const { server } = body;
+      const serverInfo = mapping.get(server);
+      if (!serverInfo) return;
+      serverInfo.nominate.push(body.data);
+    })
+    .on("server/nominate/remove", (body) => {
+      const { server } = body;
+      const serverInfo = mapping.get(server);
+      if (!serverInfo) return;
+      const { nominate } = serverInfo;
+      const target = nominate.find((item) => item.name == body.data.name);
+      if (!target) return;
+      nominate.splice(nominate.indexOf(target), 1);
+    })
+    /* ----- Other Event ----- */
+    .on("server/round_start", (body) => {
+      const { server } = body;
+      const serverInfo = mapping.get(server);
+      if (!serverInfo) return;
+      serverInfo.numrounds = body.data.numrounds;
+      serverInfo.maxrounds = body.data.maxrounds;
     })
     .on("server/round_end", (body) => {
       const { server } = body;
@@ -145,6 +206,12 @@ export function apply(ctx: Context, config: Config) {
       const serverInfo = mapping.get(server);
       if (!serverInfo) return;
       serverInfo.timeleft = body.data.timeleft;
+    })
+    .on("server/levelchange", (body) => {
+      const { server } = body;
+      const serverInfo = mapping.get(server);
+      if (!serverInfo) return;
+      serverInfo.level = body.data;
     });
 
   function sendMessage(session: Session, data) {
@@ -209,7 +276,7 @@ export function apply(ctx: Context, config: Config) {
 
       // 所有服务器
       const servers = Array.from(mapping.values()).sort((a, b) => a.id - b.id);
-      let query: UB.Server[] = [];
+      let query: MoeUB.Server[] = [];
       let serverType = "";
       let serverID = "";
 
@@ -344,7 +411,7 @@ export function apply(ctx: Context, config: Config) {
             },
             {
               key: "score",
-              values: [`${t_score} / ${ct_score}`],
+              values: [`${ct_score} / ${t_score}`],
             },
             {
               key: "timeleft",
@@ -425,6 +492,7 @@ function createConnection(ttl: number) {
   return {
     on: emitter.on.bind(emitter),
     close: () => {
+      clearInterval(timer);
       emitter.removeAllListeners();
       ws.close();
     },
